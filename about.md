@@ -1,9 +1,11 @@
 ---
 layout: page
 title: About
-permalink: /about
+permalink: about
 ---
 
-Hi, Write an awesome description about your blog here.  
-Feel free to make it a bit more interesting by adding a picture or two.  
-Only limit here is your creativity and imagination. Unleash them with full force.  
+Hi, I'm Rido, a passionate software developer, self-taught on Microsoft development stack, from COM/VB to .NET/C#, and always learning JS. 
+
+In love with Open Source, found Agile the *only* way to write high quality software.
+
+Working in Microsoft Azure as a PM, trying to make the IoT developer experience better of what it is today.
