@@ -6,13 +6,13 @@
 lang: "en"
 
 # Name of your site (displayed in the header)
-name: Forever Jekyll
+name: Rido Blog
 
 # Short bio or description (displayed in the header)
-description: A simple, elegant and full featured Jekyll theme
+description: Rido rantings about software development
 
 # URL of your avatar or profile pic (you could use your GitHub profile pic)
-avatar: /assets/image/avatar.png
+avatar: https://s.gravatar.com/avatar/29df189af8c5f115b13d32b1d7b30fa2?s=80
 
 #
 # Flags below are optional
@@ -20,13 +20,13 @@ avatar: /assets/image/avatar.png
 
 # Your website URL (e.g. https://forever-jekyll.github.io or https://forever-jekyll.com)
 # Used for Sitemap.xml and your RSS feed
-url: https://forever-jekyll.github.io
+url: https://blog.rido.dev
 
 # If you're hosting your site at a Project repository on GitHub pages
 # (http://yourusername.github.io/repository-name)
 # and NOT your User repository (http://yourusername.github.io)
 # then add in the baseurl here, like this: "/repository-name"
-baseurl: ""
+# baseurl: "/"
 
 # Navigation menu
 navigation_links:
@@ -36,9 +36,6 @@ navigation_links:
   - title: About
     url: /about
 
-  - title: Search
-    url: /search
-
 # Footer icons
 footer_links:
   - title: Feed
@@ -46,11 +43,11 @@ footer_links:
     icon: fa fa-rss-square
 
   - title: Twitter
-    url: https://twitter.com/jekyllrb
+    url: https://twitter.com/ridomin
     icon: fa fa-twitter-square
 
   - title: GitHub
-    url: https://github.com/forever-jekyll
+    url: https://github.com/ridomin
     icon: fa fa-github-square
 
 # Enter your copyright text if you wish to override the default one.
@@ -79,7 +76,7 @@ kramdown:
     css_class: 'highlight'
 
 # Pagination
-paginate: 5
+paginate: 10
 paginate_path: "/page/:num/"
 
 # Set the Sass partials directory, as we're using @imports
@@ -88,7 +85,7 @@ sass:
   style: :expanded # You might prefer to minify using :compressed
 
 # Use the following plug-ins
-gems:
+plugins:
   - jekyll-sitemap # Create a sitemap using the official Jekyll sitemap gem
   - jekyll-feed # Create an Atom feed using the official Jekyll feed gem
   - jekyll-gist
@@ -96,6 +93,7 @@ gems:
   - jekyll-seo-tag
   - jemoji
   - webrick
+  - jekyll-analytics
 
 # Exclude these files from your production _site
 exclude:
@@ -104,3 +102,8 @@ exclude:
   - LICENSE
   - README.md
   - CNAME
+
+jekyll_analytics:
+  GoogleAnalytics:          # Add, if you want to track with Google Analytics
+    id: UA-66818411-6          # Required - replace with your tracking id
+    anonymizeIp: false      # Optional - Default: false - set to true for anonymized tracking
