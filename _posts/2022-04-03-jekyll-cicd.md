@@ -1,5 +1,4 @@
 ---
-published: false
 layout: post
 date: 2022-04-03T00:00:00.000Z
 title: Validate Jekyll in Azure Static Web Sites before publishing to GitHub Pages
