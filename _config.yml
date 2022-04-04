@@ -32,6 +32,9 @@ url: https://blog.rido.dev
 navigation_links:
   - title: Blog
     url: /
+  
+  - title: Projects
+    url: /projects
 
   - title: About
     url: /about
