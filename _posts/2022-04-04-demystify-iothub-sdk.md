@@ -26,7 +26,7 @@ IoTHub requires all MQTT connections to be protected with TLS 1.2, and can be co
 {% gist 63942b7e7e18f15dd0010d0f565e51cb %}
 
 
-Once you have your IoT Hub, and your device, grab the device crendtials from the portal or CLI, and replace it in the code below, and once you run it you are connected.
+Once you have your IoT Hub, and your device , grab the device crendtials from the portal or CLI, and replace it in the code below, and once you run it you are connected. See [this instructions](https://docs.microsoft.com/en-us/azure/iot-develop/quickstart-send-telemetry-iot-hub?pivots=programming-language-ansi-c#register-a-device) to create your IoT Hub and register a device.
 
 ```cs
 using MQTTnet;
@@ -37,7 +37,7 @@ IMqttClient mqttClient = new MqttFactory().CreateMqttClient();
 var connAck = await mqttClient.ConnectAsync(new MqttClientOptionsBuilder()
     .WithAzureIoTHubCredentialsSas(
         hostName: "<your-hub>.azure-devices.net",
-        deviceId : "<ourdevice>",
+        deviceId : "<your-device>",
         sasKey: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
     )
     .Build());
@@ -52,8 +52,117 @@ The first feature to explore is device telemetry, telemetry messages can be rout
 To send a telemetry message we just need to publish a message to a well known MQTT topic:
 
 ```cs
+var pubAck = await mqttClient.PublishAsync(
+        $"devices/{mqttClient.Options.ClientId}/messages/events/",
+        JsonSerializer.Serialize(new { Environment.WorkingSet }) );
 
+Console.WriteLine($"Telemetry sent with pubAck: {pubAck.ReasonCode}" );
 ```
 
+>Note: To verify the telemetry has been set, use the Azure CLI `az iot hub monitor-events -n <your-hub>`
 
+## Implement Commands
 
+Devices connected to IoT Hub can receive command invocations by following the next pattern.
+
+- Subscribe to the topic `$iothub/methods/POST/#`
+- Process incoming messages and parse the `commandName` `requestIdentifier` and `commandPayload`
+- Publish the commadn response to topic `$iothub/methods/res/{response.Status}/?$rid={rid}`
+
+The following code implements this pattern
+
+```cs
+await mqttClient.SubscribeAsync("$iothub/methods/POST/#");
+mqttClient.UseApplicationMessageReceivedHandler(async m =>
+{
+    var topic = m.ApplicationMessage.Topic;
+    if (topic.StartsWith("$iothub/methods/POST/"))
+    {
+        var segments = topic.Split('/');
+        var qs = HttpUtility.ParseQueryString(segments[^1]);
+        _ = int.TryParse(qs["$rid"], out int rid);
+        var cmdName = segments[3];
+        var cmdPayload = Encoding.UTF8.GetString(m.ApplicationMessage.Payload);
+
+        Console.WriteLine($"Executing command {cmdName} with rid {rid} and payload {cmdPayload}");
+        await mqttClient.PublishAsync($"$iothub/methods/res/200/?$rid={rid}", cmdPayload);
+    }
+});
+```
+
+## Properties (aka Device Twins)
+
+Device Twins allows to manage the device state by using the `reported` and `desired` properties pattern. 
+
+### Read DeviceTwin
+
+To read the device twin devices can send a request by  publish a message to `$iothub/twin/GET/?$rid={rid}` and will get the response subscribing to `$iothub/twin/res/200`.
+
+The code below implements this pattern using the same `mqttClient`:
+
+```cs
+await mqttClient.SubscribeAsync("$iothub/twin/res/#");
+mqttClient.UseApplicationMessageReceivedHandler(m => {
+    var topic = m.ApplicationMessage.Topic;
+    if (topic.StartsWith("$iothub/twin/res/200"))
+    {
+        var segments = topic.Split('/');
+        var qs = HttpUtility.ParseQueryString(segments[^1]);
+        _ = int.TryParse(qs["$rid"], out int rid);
+        var twin = Encoding.UTF8.GetString(m.ApplicationMessage.Payload);
+        Console.WriteLine(twin);
+    }
+});
+await mqttClient.PublishAsync($"$iothub/twin/GET/?$rid=1");
+```
+
+### Update Device Twin
+
+Device properties can be updated from the device and the values will be stored in the `reported` section of the twin. To make the update devices must send a message to the topic `$iothub/twin/PATCH/properties/reported/?$rid=`, as a result of this request devices can subscribe to the topic `$iothub/twin/res/204` to get the updated reported version. Here is the flow:
+
+- Device subscribes to `$iothub/twin/res/204`
+- Device publish a message to `$iothub/twin/PATCH/properties/reported/?$rid=`
+- Device process the incoming message and extracts the updated version from the response topic
+
+The code below implements this flow:
+
+```cs
+await mqttClient.SubscribeAsync("$iothub/twin/res/#");
+mqttClient.UseApplicationMessageReceivedHandler(m =>
+{
+    var topic = m.ApplicationMessage.Topic;
+    if (topic.StartsWith("$iothub/twin/res/204"))
+    {
+        var segments = topic.Split('/');
+        var qs = HttpUtility.ParseQueryString(segments[^1]);
+        var twinVersion = Convert.ToInt32(qs["$version"]);
+        System.Console.WriteLine(twinVersion);
+    }
+});
+await mqttClient.PublishAsync(
+    "$iothub/twin/PATCH/properties/reported/?$rid=2",
+    JsonSerializer.Serialize(new { myProperty = "myValue" }));
+```
+
+### Handle desired property updates
+
+Every time the `desired` section of the twin gets updated, IoT Hub makes the update available to connected devices who are subscribed to the topic `$iothub/twin/PATCH/properties/desired/#`, this flow is similar to the one implemented above for commands:
+
+- Device subscribe to `$iothub/twin/PATCH/properties/desired/#`
+- When new message is published to this topic the device reads the payload
+- Optionally the device reports back a reported property to indicate the property was accepted or rejected
+
+```cs
+await mqttClient.SubscribeAsync("$iothub/twin/PATCH/properties/desired/#");
+mqttClient.UseApplicationMessageReceivedHandler(async m =>
+{
+    var topic = m.ApplicationMessage.Topic;
+    if (topic.StartsWith("$iothub/twin/PATCH/properties/desired"))
+    {
+        string msg = Encoding.UTF8.GetString(m.ApplicationMessage.Payload);
+        System.Console.WriteLine(msg);
+    }
+});
+```
+
+The complete code for this sample can be found in this gist.
