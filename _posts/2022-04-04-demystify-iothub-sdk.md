@@ -19,11 +19,11 @@ The MQTT protocol allow clients to connect by specifying a `UserName` and `Passw
 
 The next gist shows how to obtain the UserName and Password from the device connection string based on SAS tokens:
 
-{% gist 03311a7bfa38c7ef4acfbe274a822b41 %}
+{% gist 8572122aa346e6bedd2ae0de0b95fcd0 SasAuth %}
 
 IoTHub requires all MQTT connections to be protected with TLS 1.2, and can be configured using the `MQTTNetConnectionOptionsBuilder` with the extension method below:
 
-{% gist 63942b7e7e18f15dd0010d0f565e51cb %}
+{% gist 8572122aa346e6bedd2ae0de0b95fcd0 MqttNetExtensions %}
 
 
 Once you have your IoT Hub, and your device , grab the device crendtials from the portal or CLI, and replace it in the code below, and once you run it you are connected. See [this instructions](https://docs.microsoft.com/en-us/azure/iot-develop/quickstart-send-telemetry-iot-hub?pivots=programming-language-ansi-c#register-a-device) to create your IoT Hub and register a device.
@@ -165,4 +165,4 @@ mqttClient.UseApplicationMessageReceivedHandler(async m =>
 });
 ```
 
-The complete code for this sample can be found in this gist.
+The complete code for this sample can be found in this [gist](https://gist.github.com/ridomin/8572122aa346e6bedd2ae0de0b95fcd0) 
