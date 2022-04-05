@@ -41,7 +41,7 @@ var connAck = await mqttClient.ConnectAsync(new MqttClientOptionsBuilder()
         sasKey: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
     )
     .Build());
-System.Console.WriteLine($"connAck resaon: {connAck.ResultCode} IsConnected: {mqttClient.IsConnected}");
+System.Console.WriteLine(Azs$"connAck resaon: {connAck.ResultCode} IsConnected: {mqttClient.IsConnected}");
 
 ```
 
