@@ -13,7 +13,15 @@ Azure IoT Hub offers two different authentication method for devices: Shared Sec
 
 The MQTT protocol allow clients to connect by specifying a `UserName` and `Password`, along with the `ClientId`. IoTHub requires a specific format for the UserName based on the HubName, DeviceId and the SasToken, and the Password is computed with an HMAC signature adding an expiry string.
 
-The next gist shows how to obtain the UserName and Password from the device connection string.
+The next gist shows how to obtain the UserName and Password from the device connection string based on SAS tokens:
+
+{% gist 03311a7bfa38c7ef4acfbe274a822b41 %}
+
+IoTHub requires all MQTT connections to be protected with TLS 1.2, and can be configured using the `MQTTNetConnectionOptionsBuilder` with the extension method below:
+
+{% gist 63942b7e7e18f15dd0010d0f565e51cb %}
+
+
 
 
 
