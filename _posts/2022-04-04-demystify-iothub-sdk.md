@@ -1,5 +1,4 @@
 ---
-published: true
 date: 2022-04-04
 layout: post
 title: Demystifying Azure IoT Hub Device SDKs
