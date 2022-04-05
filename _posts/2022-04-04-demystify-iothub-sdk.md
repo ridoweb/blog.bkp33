@@ -4,6 +4,7 @@ layout: post
 title: Demystifying Azure IoT Hub Device SDKs
 categories: mqtt
 ---
+
 This post covers how to access main IoTHub features using the MQTT protocol without using the official Device SDKs, instead it uses a generic MQTT library for dotnet capable of basic MQTT primitives: `Connect`, `Publish` and `Subscribe` to access the Telemetry, Commands and DeviceTwin features.
 
 ## Choosing an MQTT Library
@@ -25,7 +26,7 @@ IoTHub requires all MQTT connections to be protected with TLS 1.2, and can be co
 {% gist 63942b7e7e18f15dd0010d0f565e51cb %}
 
 
-Once you have your IoT Hub, and your device, grab the device crendtials and replace it in the code below, and once you run it you are connected.
+Once you have your IoT Hub, and your device, grab the device crendtials from the portal or CLI, and replace it in the code below, and once you run it you are connected.
 
 ```cs
 using MQTTnet;
@@ -44,7 +45,15 @@ System.Console.WriteLine($"connAck resaon: {connAck.ResultCode} IsConnected: {mq
 
 ```
 
+## Sending Telemetry
 
+The first feature to explore is device telemetry, telemetry messages can be routed to other Azure services such as Storage, EventHub or EventGrid. 
+
+To send a telemetry message we just need to publish a message to a well known MQTT topic:
+
+```cs
+
+```
 
 
 
