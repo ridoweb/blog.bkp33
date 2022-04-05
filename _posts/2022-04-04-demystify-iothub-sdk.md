@@ -1,5 +1,8 @@
 ---
 published: false
+layout: post
+title: Demystifying Azure IoT Hub Device SDKs
+categories: mqtt
 ---
 This post covers how to access main IoTHub features using the MQTT protocol without using the official Device SDKs, instead it uses a generic MQTT library for dotnet capable of basic MQTT primitives: `Connect`, `Publish` and `Subscribe` to access the Telemetry, Commands and DeviceTwin features.
 
