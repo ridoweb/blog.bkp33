@@ -22,7 +22,24 @@ IoTHub requires all MQTT connections to be protected with TLS 1.2, and can be co
 {% gist 63942b7e7e18f15dd0010d0f565e51cb %}
 
 
+Once you have your IoT Hub, and your device, grab the device crendtials and replace it in the code below, and once you run it you are connected.
 
+```cs
+using MQTTnet;
+using MQTTnet.Client;
+using MQTTnet.Client.Options;
+
+IMqttClient mqttClient = new MqttFactory().CreateMqttClient();
+var connAck = await mqttClient.ConnectAsync(new MqttClientOptionsBuilder()
+    .WithAzureIoTHubCredentialsSas(
+        hostName: "<your-hub>.azure-devices.net",
+        deviceId : "<ourdevice>",
+        sasKey: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+    )
+    .Build());
+System.Console.WriteLine($"connAck resaon: {connAck.ResultCode} IsConnected: {mqttClient.IsConnected}");
+
+```
 
 
 
