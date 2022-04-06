@@ -26,7 +26,7 @@ IoTHub requires all MQTT connections to be protected with TLS 1.2, and can be co
 {% gist 8572122aa346e6bedd2ae0de0b95fcd0 MqttNetExtensions.cs %}
 
 
-Once you have your IoT Hub, and your device , grab the device crendtials from the portal or CLI, and replace it in the code below, and once you run it you are connected. See [this instructions](https://docs.microsoft.com/en-us/azure/iot-develop/quickstart-send-telemetry-iot-hub?pivots=programming-language-ansi-c#register-a-device) to create your IoT Hub and register a device.
+Once you have your IoT Hub, and your device , grab the device credentials from the portal or CLI, and replace it in the code below, and once you run it you are connected. See [this instructions](https://docs.microsoft.com/en-us/azure/iot-develop/quickstart-send-telemetry-iot-hub?pivots=programming-language-ansi-c#register-a-device) to create your IoT Hub and register a device.
 
 ```cs
 using MQTTnet;
