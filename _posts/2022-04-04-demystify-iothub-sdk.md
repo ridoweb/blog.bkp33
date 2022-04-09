@@ -59,7 +59,9 @@ var pubAck = await mqttClient.PublishAsync(
 Console.WriteLine($"Telemetry sent with pubAck: {pubAck.ReasonCode}" );
 ```
 
->Note: To verify the telemetry has been set, use the Azure CLI `az iot hub monitor-events -n <your-hub>`
+To verify the telemetry has been received by hub use the Azure CLI 
+
+`az iot hub monitor-events -n <your-hub>`
 
 ## Implement Commands
 
@@ -89,6 +91,10 @@ mqttClient.UseApplicationMessageReceivedHandler(async m =>
     }
 });
 ```
+
+To invoke the command, and see the response from the CLI:
+
+`az iot hub invoke-device-method -n yourhub -d yourdevice --method-name myCommand --method-paylaod "Hello"`
 
 ## Properties (aka Device Twins)
 
@@ -144,6 +150,8 @@ await mqttClient.PublishAsync(
     JsonSerializer.Serialize(new { myProperty = "myValue" }));
 ```
 
+To check the twin value with the CLI: `az iot hub device-twin show -n yourhub -d yourdevice`
+
 ### Handle desired property updates
 
 Every time the `desired` section of the twin gets updated, IoT Hub makes the update available to connected devices who are subscribed to the topic `$iothub/twin/PATCH/properties/desired/#`, this flow is similar to the one implemented above for commands:
@@ -164,5 +172,20 @@ mqttClient.UseApplicationMessageReceivedHandler(async m =>
     }
 });
 ```
+To trigger a device update from the CLI: `az iot hub device-twin update -n yourhub -d yourdevice --desired "{'propName':value}"`
+
+## Conlusion
+
+You can access main IoTHub features with any MQTT client by connecting with the approprate crendentials and pub/sub to the  predefined topics to implement device-to-cloud and cloud-to-device patterns.
+
+### Considerations
+
+When using SaS tokens, keep in mind that tere is a default expiry interval - in this sample is 60 minutes, after that period the client will be disconnected. You can use a timer to manually re-connect before the client gets disconnected.
+
+In a future port I will cover how to connect with X509 Certificates that dont have any expiration limt.
+
+The `UseApplicationMessageReceivedHandler` method, when called multiple times, will remove the previous handlers, in a full exmaple you must parse all incoming messages from the same handler, or... (spoiler alert) use a multicast delegate as will show in a future post.
+
+Enjoy Azure IoT Hub without an official SDK.
 
 The complete code for this sample can be found in this [gist](https://gist.github.com/ridomin/8572122aa346e6bedd2ae0de0b95fcd0) 
