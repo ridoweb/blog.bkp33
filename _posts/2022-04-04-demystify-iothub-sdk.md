@@ -5,7 +5,7 @@ title: Demystifying Azure IoT Hub Device SDKs
 categories: mqtt
 ---
 
-This post covers how to access main IoTHub features using the MQTT protocol without using the official Device SDKs, instead it uses a generic MQTT library for dotnet capable of basic MQTT primitives: `Connect`, `Publish` and `Subscribe` to access the Telemetry, Commands and DeviceTwin features.
+This post covers how to access main IoTHub features using the MQTT protocol without using the official Device SDKs (as [described in the docs](https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-mqtt-support)), instead it uses a generic MQTT library for dotnet capable of basic MQTT primitives: `Connect`, `Publish` and `Subscribe` to access the Telemetry, Commands and DeviceTwin features.
 
 ## Choosing an MQTT Library
 
@@ -59,7 +59,7 @@ var pubAck = await mqttClient.PublishAsync(
 Console.WriteLine($"Telemetry sent with pubAck: {pubAck.ReasonCode}" );
 ```
 
-To verify the telemetry has been received by hub use the Azure CLI 
+To verify the telemetry has been received by hub use the Azure CLI: 
 
 `az iot hub monitor-events -n <your-hub>`
 
@@ -150,7 +150,9 @@ await mqttClient.PublishAsync(
     JsonSerializer.Serialize(new { myProperty = "myValue" }));
 ```
 
-To check the twin value with the CLI: `az iot hub device-twin show -n yourhub -d yourdevice`
+To check the twin value with the CLI: 
+
+`az iot hub device-twin show -n yourhub -d yourdevice`
 
 ### Handle desired property updates
 
@@ -172,7 +174,9 @@ mqttClient.UseApplicationMessageReceivedHandler(async m =>
     }
 });
 ```
-To trigger a device update from the CLI: `az iot hub device-twin update -n yourhub -d yourdevice --desired "{'propName':value}"`
+To trigger a device update from the CLI: 
+
+`az iot hub device-twin update -n yourhub -d yourdevice --desired "{'propName':value}"`
 
 ## Conlusion
 
