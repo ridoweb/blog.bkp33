@@ -117,5 +117,73 @@ client.OnCommandReceived = async m => {            {
 The implementation of the `HubMQttClient` exposing the `OnCommandReceived` event is shown below:
 
 ```cs
+public abstract class BaseCommandResponse
+{
+    [JsonIgnore]
+    public int Status { get; set; }
+}
+public class CommandResponse : BaseCommandResponse
+{
+    public string ReponsePayload { get; set; }
+}
+public class GenericCommandRequest
+{
+    public string CommandName { get; set; }
+    public string CommandPayload { get; set; }
+}
 
+public class Command<T, TResponse> : ICommand<T, TResponse> where T : IBaseCommandRequest<T>, new()
+        where TResponse : BaseCommandResponse
+{
+    public Func<T, Task<TResponse>> OnCmdDelegate { get; set; }
+   public class GenericCommand
+    {
+        public Func<GenericCommandRequest, Task<CommandResponse>> OnCmdDelegate { get; set; }
+        public GenericCommand(IPubSubClient connection)
+        {
+            _ = connection.SubscribeAsync("$iothub/methods/POST/#");
+            connection.OnMessage += async m =>
+            {
+                var topic = m.Topic;
+                if (topic.StartsWith($"$iothub/methods/POST/"))
+                {
+                    var segments = topic.Split('/');
+                    var cmdName = segments[3];
+                    string msg = m.Payload;
+                    GenericCommandRequest req = new GenericCommandRequest()
+                    {
+                        CommandName = cmdName,
+                        CommandPayload = msg
+                    };
+                    if (OnCmdDelegate != null && req != null)
+                    {
+                        (int rid, _) = TopicParser.ParseTopic(topic);
+                        CommandResponse response = await OnCmdDelegate.Invoke(req);
+                        _ = connection.PublishAsync($"$iothub/methods/res/{response.Status}/?$rid={rid}", response);
+                    }
+                }
+            };
+        }
+    }
+}
+```
+To wire up this classes, the `HubMqttClient` is implemented using the `IPubSucClient` injected into the constructor:
+
+```cs
+public class HubMqttClient : IHubMqttClient
+{
+
+    private readonly GenericCommand command;
+    public HubMqttClient(IMqttBaseClient c)
+    {
+        command = new GenericCommand(c);
+    }
+
+    public Func<GenericCommandRequest, Task<CommandResponse>> OnCommandReceived
+    {
+        get => command.OnCmdDelegate;
+        set => command.OnCmdDelegate = value;
+    }
+    // implementation skipped for clarity
+}
 ```
