@@ -178,7 +178,7 @@ To trigger a device update from the CLI:
 
 `az iot hub device-twin update -n yourhub -d yourdevice --desired "{'propName':value}"`
 
-## Conlusion
+## Conclusion
 
 You can access main IoTHub features with any MQTT client by connecting with the approprate crendentials and pub/sub to the  predefined topics to implement device-to-cloud and cloud-to-device patterns.
 
