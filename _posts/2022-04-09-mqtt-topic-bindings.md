@@ -174,7 +174,7 @@ public class HubMqttClient : IHubMqttClient
 {
 
     private readonly GenericCommand command;
-    public HubMqttClient(IMqttBaseClient c)
+    public HubMqttClient(IPubSubClient c)
     {
         command = new GenericCommand(c);
     }
