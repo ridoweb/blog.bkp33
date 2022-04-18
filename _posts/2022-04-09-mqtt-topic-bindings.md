@@ -4,186 +4,48 @@ layout: post
 date: 2022-04-09
 ---
 
-In [my previous post](/mqtt/2022/04/04/demystify-iothub-sdk/) I explained how to access Azure IoT Hub features using any MQTT Client by processing incoming messages using a single `UseApplicationMessageReceivedHandler` to process all incoming messages. This handler implies that I need to implement all features in a single callback method, what is not very nice in terms of single reposibility principle.
+The MQTT protocol, based on _PubSub_ requires to define a set of topics that clients will use to publish and subscribe messages. 
 
-In this post I'm going to explore how a [C# multicast delegate](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/delegates/how-to-combine-delegates-multicast-delegates) can help to isolate different communication patterns - for properties and commands - in different classes without clashing the global handler.
-
-## BYO MQTT
-
-Before going deep with the final solution let's discuss another interesting pattern: _BYO MQTT_, basically what it means is to create an anticorruption layer - also known as the adapter pattern - to isolate the required APIs from any specific MQTT Client implementation.
-
-Any MQTT Library should expose an API to Pub/Sub to topics and receive the incoming messages, in its simpliest form it might look like:
+Once the client is subscribed to one or more topics, all incoming messages will be processed in the same callback handler, making the code difficult to mantain, as any new incoming message should be processed in the same code block, using MQTTNet4 as a example.
 
 ```cs
-public class PubSubMessage
-{
-    public string Topic { get; set; } = "";
-    public string Payload { get; set; } = "";
-}
-
-public interface IPubSubClient
-{
-    event Func<PubSubMessage, Task> OnMessage;
-    Task<int> PublishAsync(PubSubMessage message, int qos = 1, CancellationToken token = default);
-    Task<int> SubscribeAsync(string topic, CancellationToken token = default);
-}
-```
-Based on this interface we can create adapters using different MQTT libraries such as MQTTNet 3:
-
-```cs
-namespace Rido.Mqtt.MqttNet3Adapter
-{
-    public class MqttNetClient : IPubSubClient
-    {
-        public event Func<MqttMessage, Task> OnMessage;
-
-        private readonly MqttClient client;
-        public MqttNetClient(MqttClient client)
-        {
-            this.client = client;
-            this.client.UseApplicationMessageReceivedHandler(async m =>
-            {
-                await OnMessage?.Invoke(
-                     new PubSubMessage()
-                     {
-                         Topic = m.ApplicationMessage.Topic,
-                         Payload = Encoding.UTF8.GetString(m.ApplicationMessage.Payload ?? Array.Empty<byte>())
-                     });
-            });
-        }
-
-        public async Task<int> SubscribeAsync(string topic, CancellationToken token = default)
-        {
-            var res = await client.SubscribeAsync(
-                new MqttClientSubscribeOptionsBuilder()
-                    .WithTopicFilter(topic)
-                    .Build(), 
-                token);
-            var errs = res.Items.ToList().Any(x => x.ResultCode > MqttClientSubscribeResultCode.GrantedQoS2);
-            if (errs)
-            {
-                throw new ApplicationException("Error subscribing to " + topic);
-            }
-            return 0;
-        }
-    // full implementation omitted for clarity
-    }
-}
-```
-Note how the `OnMessage` delegate is invoked inside the callback handler.
-
-## Implement messaging patterns with Single Responsibility Principle
-
-We have identified the next messaging patterns for each IoT Hub feature:
-
-- Fire and Forget for *Telemetry*
-- Request/Response for *GetTwin* and *Update Twin*
-- Response/Request for *Commands* and *Desired Properties Updates*
-
-I'd like to implement each of these patterns in a `HubClient` class, that will implement the interface:
-
-```cs
- public interface IHubMqttClient
-{
-    Func<GenericCommandRequest, Task<CommandResponse>> OnCommandReceived { get; set; }
-    Func<JsonNode, Task<GenericPropertyAck>> OnPropertyUpdateReceived { get; set; }
-    Task<string> GetTwinAsync(CancellationToken cancellationToken = default);
-    Task<int> ReportPropertyAsync(object payload, CancellationToken cancellationToken = default);
-    Task<int> SendTelemetryAsync(object payload, CancellationToken t = default);
+await mqttClient.SubsbcribeAsync("my/topic");
+await mqttClient.SubsbcribeAsync("my/other/topic");
+mqttClient.ApplicationMessageReceivedAsync = async m => {
+    swtich (m.ApplicationMessage.Topic)
+        case: "my/topic"
+            //process message
+            break;
+        case: "my/other/topic"
+            //process message
+            break;
+        default:
+            break;
 }
 ```
 
-### Commands
+# Messaging Patterns
 
-The client must susbcribe to the required topic, parse the incoming message, and expose an event to allow clients to respond to the command. These three steps must be encapsulated in a `IoTHubClient` class to allow clients subscribe to the `OnCommandReceived` without need to know the underlying topic structure. The client, using the adapter, should look like: 
+Is a common practice to define topics that must be used together to implement different variations of Request/Response, a common example is a `Command`, where a device susbcribes to a topic to get the request, and must publish to another topic with the reply.
 
-```cs
-MqttClient mqtt = new MqttFactory().CreateMqttClient();
-var connAck = await mqtt.ConnectAsync( new MqttClientOptionsBuilder()
-    .WithAzureIoTHubCredentials(hostname, deviceId, SasToken)
-    .Build(), cancellationToken);
+Another case happens when there is a service connected to the broker exposing and API to enable clients to send requests to a topic, and the response will be send to a different topic. 
 
-var client = new HubMqttClient(mqtt) 
+When implementing these two patterns using a single callback handler, the code becomes difficult to mantain and to apply SOLID princples, since now the global handler is responsible to dispatch all incoming messages.
 
-client.OnCommandReceived = async m => {            {
-    return await Task.FromResult(new CommandResponse()
-    {
-        Status = 200,
-        ReponsePayload = JsonSerializer.Serialize(new { myResponse = "whatever" })
-    });
-};
-```
+Let's build the following example on top of IoT Hub primitives:
 
-The implementation of the `HubMQttClient` exposing the `OnCommandReceived` event is shown below:
+- Devices can request the DeviceTwin by sending a message to `$iothub/twin/GET/?$rid={rid}` and will get the response in `$iothub/twin/res/200`
+- Devices can implement commands by susbcribing to `$iothub/methods/POST/#` and must send the command response to `$iothub/methods/res/{response.Status}/?$rid={rid}`
+
+Instead of mixing the device implementation with the MQTT plumbing logic, we will create clases that will be responsible to implement each of the features and expose an API to allow implementing the logic without understanding the underlying MQTT communication.
+
+We will create a `PubSubClient` that will expose a `GetTwin` method and a `OnCommand` delegate, to enable a clear separation of concerns from the code that the user must implement on top of these two concepts:
 
 ```cs
-public abstract class BaseCommandResponse
-{
-    [JsonIgnore]
-    public int Status { get; set; }
-}
-public class CommandResponse : BaseCommandResponse
-{
-    public string ReponsePayload { get; set; }
-}
-public class GenericCommandRequest
-{
-    public string CommandName { get; set; }
-    public string CommandPayload { get; set; }
-}
-
-public class Command<T, TResponse> : ICommand<T, TResponse> where T : IBaseCommandRequest<T>, new()
-        where TResponse : BaseCommandResponse
-{
-    public Func<T, Task<TResponse>> OnCmdDelegate { get; set; }
-   public class GenericCommand
-    {
-        public Func<GenericCommandRequest, Task<CommandResponse>> OnCmdDelegate { get; set; }
-        public GenericCommand(IPubSubClient connection)
-        {
-            _ = connection.SubscribeAsync("$iothub/methods/POST/#");
-            connection.OnMessage += async m =>
-            {
-                var topic = m.Topic;
-                if (topic.StartsWith($"$iothub/methods/POST/"))
-                {
-                    var segments = topic.Split('/');
-                    var cmdName = segments[3];
-                    string msg = m.Payload;
-                    GenericCommandRequest req = new GenericCommandRequest()
-                    {
-                        CommandName = cmdName,
-                        CommandPayload = msg
-                    };
-                    if (OnCmdDelegate != null && req != null)
-                    {
-                        (int rid, _) = TopicParser.ParseTopic(topic);
-                        CommandResponse response = await OnCmdDelegate.Invoke(req);
-                        _ = connection.PublishAsync($"$iothub/methods/res/{response.Status}/?$rid={rid}", response);
-                    }
-                }
-            };
-        }
-    }
-}
-```
-To wire up this classes, the `HubMqttClient` is implemented using the `IPubSucClient` injected into the constructor:
-
-```cs
-public class HubMqttClient : IHubMqttClient
-{
-
-    private readonly GenericCommand command;
-    public HubMqttClient(IPubSubClient c)
-    {
-        command = new GenericCommand(c);
-    }
-
-    public Func<GenericCommandRequest, Task<CommandResponse>> OnCommandReceived
-    {
-        get => command.OnCmdDelegate;
-        set => command.OnCmdDelegate = value;
-    }
-    // implementation skipped for clarity
+var pubSubClient = new PubSubClient(mqttClient);
+var twin = await pubSubClient.GetTwinAsync();
+pubSubClient.OnCommand = async cmd => {
+    Console.WriteLine(cmd.CommandName);
+    Console.WriteLine(cmd.CommandPayload);
 }
 ```
