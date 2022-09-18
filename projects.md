@@ -6,6 +6,18 @@ permalink: projects
 
 Here is a curated list of the most active/relevant projects on GitHub
 
+## MQTTnet.Extensions.MultiCloud
+
+Create dotnet MQTT applications compatible with any MQTT Cloud provider, such as Azure IoT, AWS IoT Core, Hive MQ or Mosquitto. Based on dotnet/MQTTnet.
+
+- [https://github.com/iotmodels/MQTTnet.Extensions.MultiCloud](https://github.com/iotmodels/MQTTnet.Extensions.MultiCloud)
+
+## PnP-MQTT
+
+A web client application -no service code required-, to connect to a MQTT broker using websockets, and provide a dynamic UI by parsing the DTDL model.
+
+- [PnP-MQTT](https://iotmodels.github.io/pnp-mqtt/)
+
 ## Azure IoT Hub Web Client
 
 Based on the Paho MQTT JS client for web sockets, this web client allows to simulate an IoTHub device, sending telemetry, reading/writing properties, and respond to command requests.
@@ -14,13 +26,6 @@ It allows to connect using Shared Access Keys, and DPS.
 
 - [https://mqtt.rido.dev](https://mqtt.rido.dev)
 - [https://github.com/ridomin/iothub-webclient](https://github.com/ridomin/iothub-webclient)
-
-## Azure IoT Hub client based on MQTTNet for dotnet
-
-Using a MQTT Library such as MQTTNet, this projects shows how to connect to IoTHub without using the official SDK.
-
-- [https://www.nuget.org/packages/Rido.IoTHubClient](https://www.nuget.org/packages/Rido.IoTHubClient)
-- [https://github.com/ridomin/Rido.IoTClient](https://github.com/ridomin/Rido.IoTClient)
 
 ## MSIX Catalog
 
