@@ -374,12 +374,10 @@ public class WritableProperty<T> : IWritableProperty<T>
 A concrete device will expose an interface compose of the unerlying interfaces described:
 
 ```cs
-public interface Idevicetemplate
+public interface IMqttDevice
 {
-    public const string ModelId = "dtmi:com:example:DeviceTemplate;1";
     public IMqttClient Connection { get; }
-    public string InitialState { get; set; }
- 
+    
     public IReadOnlyProperty<string> Property_sdkInfo { get; set; }
     public IWritableProperty<int> Property_interval { get; set; }
     public ITelemetry<double> Telemetry_temp{ get; set; }
@@ -388,3 +386,6 @@ public interface Idevicetemplate
 ```
 
 And this interface can be implementsd in different ways targeting different MQTT implementations.
+
+## Implementing the interface for a generic broker
+
