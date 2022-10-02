@@ -328,6 +328,9 @@ Let's assume we want to use the next  MQTT topics:
 
 > Note: The syntax `{clientId}`, `{propertyName}` and `{commandName}` should be replaced with the actual values
 
+# Implementing Telemetry, Properties and Commands
+
+With the D2C and C2D binders we can implement the IoT messaging patterns by inheriting from the abstract binders and configure the topics we want to use for each case.
 
 ## Telemetry 
 
@@ -446,3 +449,54 @@ public class SampleClient
     }
 }
 ```
+
+This client can be used to implement the device application focusing in the application logic without worrying of the underlying details of the pub/sub messaging or serialization formats.
+
+- Initialize the `SampleClient` with an existing mqtt connection:
+
+```cs
+client = new SampleClient(mqttClient);
+```
+
+- Update a ReadOnlyProperty
+
+```cs
+await client.Property_sdkInfo.SendMessageAsync("0.1.0.0", stoppingToken);
+```
+
+- Send Telemetry 
+
+```cs
+ await client.Telemetry_temp.SendMessageAsync(23.34);
+```
+
+- Implement a Command
+
+```cs
+client.Command_echo.OnMessage = async req =>
+{
+    return await Task.FromResult(req + req);
+};
+```
+
+- Implement a WritableProperty update
+
+```cs
+client.Property_interval.OnMessage = async p =>
+{
+    Ack<int> ack = new()
+    {
+        Version = client.Property_interval.Version,
+        Description = "accepted",
+        Status = 200,
+        Value = p
+    };
+    return await Task.FromResult(ack);
+};
+```
+
+# Summary
+
+Following this pattern you can implement MQTT applications by applying SOLID principle, the abstract binders will handle the communication details, the Telemetry, Command, ReadOnlyProperty and WritableProperty implementations can be configured to match the topic structure and serialization formats, compose these with a client and now your application logic can be implemented without taking care of the protocol details.
+
+This pattern is being used in the [MQTTnet.Extensions.MultiCloud](https://github.com/iotmodels/MQTTnet.Extensions.MultiCloud) project, to create MQTT applications that can work with different cloud providers.
