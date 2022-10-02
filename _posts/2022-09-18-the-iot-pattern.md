@@ -1,5 +1,5 @@
 ---
-title: The IoT Pattern. A dotnet implemetation for MQTT
+title: The IoT Pattern. A .NET implemetation for MQTT
 layout: post
 date: 2022-09-18
 ---
@@ -12,108 +12,80 @@ The term devices, is very broad, and can be reduced to the idea of _small_ appli
 
 These devices are able, not only to request information - like we do everyday through HTTP in our browsers - but also to establish a bi-directional communication. And this is what defines the _ IoT Pattern _.
 
+In this article we are going to explore a .NET implementation of the IoT Pattern for MQTT, using MQTTnet.
+
 # The IoT Pattern
 
-The patterns consist on 3 main communication behaviors, usually referred as D2C, for Device to Cloud communications, or C2D for Cloud to Device.
+The patterns consist on 2 main communication behaviors, usually referred as D2C, for Device to Cloud communications, or C2D for Cloud to Device.
+
+To represent messages set from the device to the cloud, we can define the next interface.
+```cs
+public interface IDeviceToCloud<T>
+{
+    Task SendMessageAsync(T payload, CancellationToken cancellationToken = default);
+}
+```
+
+Messages sent from the cloud to the device usually follows another message from the device to acknowledge the message was received, for this case we are going to use a callback with a request and a response using a `Func`.
+
+```cs
+public interface ICloudToDevice<T, TResp>
+{
+    Func<T, Task<TResp>>? OnMessage { get; set; }
+}
+```
 
 ## Telemetry
 
-Messages sent from the device to the cloud (aka as D2C) , usually with measurements obtained from sensors, such as _temperature_. Since these measuremens change frequently, the data is considered "volatile", and should be stored somewhere for further analysis. These messages can be as simple as numbers, or following a more complex schema.
+Telemetry is the most common case, when devices send messages with measurements obtained from sensors, such as _temperature_. Since these measuremens change frequently, the data is considered "volatile", and should be stored somewhere for further analysis. These messages can be as simple as numbers, or following a more complex schema.
 
+```cs
+public interface ITelemetry<T> : IDeviceToCloud<T> { }
+```
 
 ## Command
 
-The message is intiated from the solution, or service,  received by the device - a form of C2D message- and optionally returning a response. Both, the request and the response, can use different payloads.
+Commands are used to invoke actions on devices, and are one common case of C2D messaging, hence:
 
+```cs
+public interface ICommand<T, TResp> : ICloudToDevice<T, TResp> { }
+```
 
 ## Property
 
-Devices can describe some of their characteriscts, such as the serial number, or hardware detils, but also what can be referred as the _device state_. Like the variables that define the runtime behavior, such as the how often to send telemetry messages. There are two types of device properties:
+Devices can describe some of their characteriscts, such as the serial number, or hardware details, but also what can be referred as the _device state_. Like the variables that define the runtime behavior, suchlike how often to send telemetry messages. There are two types of device properties:
 
 ### Reported Properties
 
 These properties are _reported_ from the device to the cloud, sometimes also referred as _read only_ properties, and can be defined with:
 
+```cs
+public interface IReadOnlyProperty<T> : IDeviceToCloud<T> { }
+```
+
 ### Desired Properties
 
-Some properties can be set from the solution side, C2D, where the device should receive the desired property change, and accept or reject the value. These properties are referred to as _desired properties_, or _writable propeties_. The acceptance/rejection of a property can be described with _ack_ messages:
+Some properties can be set from the solution side, C2D, where the device should receive the desired property change, and accept or reject the value. These properties are referred to as _desired properties_, or _writable propeties_. The acceptance/rejection of a property can be described with _ack_ messages. These _ack_ messages contains additional information about the property, such as the Status, Version or Description, that the device can use to inform to the service if the property was accepted, or not, and related details.
 
-
-# C# Interfaces describing the IoT Pattern
-
-Telemetry, Property and Command can be described with the next C# interfaces:  
-
-## Telemetry Interface
+Since the ack messages need to be also reported, the IWritableProperty interface implements D2C and C2D:
 
 ```cs
-public interface ITelemetry<T>
+public class Ack<T>
 {
-    Task<MqttClientPublishResult> SendTelemetryAsync(T payload, CancellationToken cancellationToken = default);
-}
-```
-
-## Command interface
-
-The best way to describe _incoming_ messages is to use C# delegates, or using modern C# constructs as `Func` to define the callbacks for C2D messages:
-
-```cs
-public interface IBaseCommandRequest<T>
-{
-    T DeserializeBody(string payload);
-}
-
-public interface IBaseCommandResponse<T>
-{
-    public int Status { get; set; }
-    public T ReponsePayload { get; set; }
-}
-
-public interface ICommand<T, TResponse>
-        where T : IBaseCommandRequest<T>, new()
-        where TResponse : IBaseCommandResponse<TResponse>
-{
-    Func<T, TasK<TResponse>>? OnCmdDelegate { get; set; }
-}
-```
-
-> Note: The Request must be able to be Deserialized from the incoming payload, and the response must include not only the payload but also the status
-
-
-## Property Interface
-
-As described earlier, we must differenciate _ReadOnlyProperties_ and _WritableProperties_
-
-### ReadOnly Property Interface
-
-A property represents the device state and must able to send this state to the service using a D2C message:
-
-```cs
-public interface IReadOnlyProperty<T>
-{
-    string PropertyName { get; }
-    T PropertyValue { get; set; }
-    Task<int> ReportPropertyAsync(CancellationToken cancellationToken = default);
-}
-```
-
-### Writable Property Interface
-
-A Writable Property extends the `IReadOnlyProperty<T>` interface by adding a callback to receive desired property updates, and also provides a return value repressnted as a `PropertyAck` to indicate if the property was accepted or rejected: 
-
-```cs
-public class PropertyAck<T>
-{
-    public string Name { get; set; }
+    public int? Version { get; set; }
     public string? Description { get; set; }
     public int Status { get; set; }
-    public T Value { get; set; } 
+    public T Value { get; set; } = default!;
 }
 
-public interface IWritableProperty<T> : IReadOnlyProperty<T>
+public interface IWritableProperty<T> : ICloudToDevice<T, Ack<T>>, IDeviceToCloud<Ack<T>>
 {
-    Func<PropertyAck<T>, PropertyAck<T>> OnProperty_Updated { get; set; }
+    T? Value { get; set; }
+    int? Version { get; set; }
 }
 ```
+
+
 
 # MQTT
 
