@@ -103,9 +103,9 @@ To interact with the broker we need to:
 2. Subscribe to topics, using different wildcard patterns such as `+` or `#`
 3. Publish messages to topics
 
-The most famous client is the `mosquitto-client` available in almost every Windows/Linux/Mac OS in the form `mosquitto_pub` and `mosquitto_sub` CLI commands, and there are multiple other options.
+The most used client is the `mosquitto-client` available in almost every Windows/Linux/Mac OS in the form `mosquitto_pub` and `mosquitto_sub` CLI commands, and there are multiple other options.
 
-To write device application we need libraries implementing the protocol, the most famous one is `Paho` from the Eclipse foundation, but there are manyu others for practically every programming platform.
+To write device application we need libraries implementing the protocol, like `Paho` from the Eclipse foundation, but there are manyu others for practically every programming platform.
 
 No matter with language you use, the pseudo-code to connect, publish and subscribe will look similar to:
 
@@ -120,15 +120,200 @@ mqtt.OnMessageReceived = (topic, msg) => {
 mqtt.publish('topicA', 'sampleMessage')
 ```
 
-This pattern, although very powerfull, makes the client code difficult to write, since the client must process all the incoming messages in a single location.
+This pattern, although very powerfull, makes the client code difficult to write, since the client must process all the incoming messages in a single location, the callback where we subscribe for incoming.
+
+# Introducing MQTT Topic Bindings
+
+To implement the interfaces described above using the MQTT protocol we can create _topic bindings_, these are classes that will use specific MQTT topics. 
+
+
+These binders will use Dependency Injection to use an existing MQTT connection, represented by the `IMqttClient` interface available in `MQTTnet`.  
+
+```cs
+public interface IMqttClient
+{
+    Task<MqttClientPublishResult> PublishAsync(string topic, byte[] payload);
+    Task<MqttClientSubscribeResult> SubscribehAsync(topic);
+}
+```
+
+## Serializers
+
+Note how the publish method requires a byte array, what gives multiple options to use different serializers, to customize the serialization format we will define the `IMessageSerializer` interface, to enable to configure the binder with different serialization options, such as UTF8Json, Avro, or Protobuf.
+
+```cs
+public interface IMessageSerializer
+{
+    byte[] ToBytes<T>(T payload, string name = "");
+    T? FromBytes<T>(byte[] payload, string name = "");
+}
+```
+
+### Wrapped Messages
+
+There are cases where we want the message to be _wrapped_ with the name, eg:
+
+```json
+{
+    "temperature" : 23.32
+}
+```
+
+Hence, the serializers should know that name to provide the actual value.
+
+
+## DeviceToCloud Binder
+
+This binder implements the `IDeviceToCloud` interface and is responsible to serialize the incoming message into a byte array and publish to the specified topic, there is a constructor that uses the Json serializer but this can be configured with additional serializers.
+
+```cs
+public abstract class DeviceToCloudBinder<T> : IDeviceToCloud<T>
+{
+    private readonly string _name;
+    private readonly IMqttClient _connection;
+    private readonly IMessageSerializer _messageSerializer;
+
+    public string TopicPattern = "device/{clientId}/telemetry";
+    public bool WrapMessage = false;
+    protected bool Retain = false;
+
+    public DeviceToCloudBinder(IMqttClient mqttClient, string name) : this(mqttClient, name, new UTF8JsonSerializer()) { }
+
+    public DeviceToCloudBinder(IMqttClient mqttClient, string name, IMessageSerializer ser)
+    {
+        _connection = mqttClient;
+        _name = name;
+        _messageSerializer = ser;
+    }
+
+    public async Task SendMessageAsync(T payload, CancellationToken cancellationToken = default)
+    {
+        string topic = TopicPattern
+                            .Replace("{clientId}", _connection.Options.ClientId)
+                            .Replace("{name}", _name);
+        byte[] payloadBytes;
+        if (WrapMessage)
+        {
+            payloadBytes = _messageSerializer.ToBytes(new Dictionary<string, T> { { _name, payload } });
+        }
+        else
+        {
+            payloadBytes = _messageSerializer.ToBytes(payload);
+        }
+        var pubAck = await _connection.PublishAsync(
+            new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payloadBytes)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .WithRetainFlag(Retain)
+                .Build(),
+            cancellationToken);
+
+        if (pubAck.ReasonCode != MqttClientPublishReasonCode.Success)
+        {
+            Trace.TraceWarning($"Message not published: {pubAck.ReasonCode}");
+        }
+    }
+}
+```
+The abstract class includes tw protected members to configure its behavior:
+
+- TopicPattern. To configure the topic to publish to.
+- Retained. If the message should published with the retain flag.
+- WrapMessages. To create a wrapped version of the message.
+
+## CloudToDevice Binder
 
 Thanks to C# multicast delegates, we can apply a code pattern to isolate the processing of each incoming message in a single class, to follow the Single-Responsibility principle.
 
 This way, we can have different classes to implement Telemetry, Properties and Commands by publishing and subscribing to a well-known MQTT topics.
 
-# Introducing MQTT Topic Bindings
+```cs
+public abstract class CloudToDeviceBinder<T, TResp> : ICloudToDevice<T, TResp>
+{
+    private readonly string _name;
+    private readonly IMqttClient _connection;
 
-To implement the interfaces described above using the MQTT protocol we can create _topic bindings_, these are classes that will use specific MQTT topics. Let's assume we want to use the next  MQTT topics:
+    protected bool UnwrapRequest = false;
+    protected bool WrapResponse = false;
+
+    protected bool RetainResponse = false;
+
+    public Func<T, Task<TResp>>? OnMessage { get; set; }
+
+    protected Action<TopicParameters>? PreProcessMessage;
+
+    public CloudToDeviceBinder(IMqttClient connection, string name)
+        : this(connection, name, new UTF8JsonSerializer()) { }
+
+    public CloudToDeviceBinder(IMqttClient connection, string name, IMessageSerializer serializer)
+    {
+        _connection = connection;
+        _name = name;
+
+        connection.ApplicationMessageReceivedAsync += async m =>
+        {
+            var topic = m.ApplicationMessage.Topic;
+            if (topic.StartsWith(requestTopicPattern!.Replace("/#", string.Empty)))
+            {
+                if (OnMessage != null)
+                {
+                    var tp = TopicParser.ParseTopic(topic);
+                    PreProcessMessage?.Invoke(tp);
+
+                    T req = serializer.FromBytes<T>(m.ApplicationMessage.Payload, UnwrapRequest ? _name : string.Empty)!;
+                    if (req != null)
+                    {
+                        TResp resp = await OnMessage.Invoke(req);
+                        byte[] responseBytes = serializer.ToBytes(resp, WrapResponse ? _name : string.Empty);
+
+                        string? resTopic = responseTopicPattern?
+                            .Replace("{rid}", tp.Rid.ToString())
+                            .Replace("{version}", tp.Version.ToString());
+
+                        _ = connection.PublishAsync(
+                            new MqttApplicationMessageBuilder()
+                                .WithTopic(resTopic)
+                                .WithPayload(responseBytes)
+                                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                                .WithRetainFlag(RetainResponse)
+                                .Build());
+                    }
+                    else
+                    {
+                        Trace.TraceWarning($"Cannot parse incoming message name: {_name} payload: {Encoding.UTF8.GetString(m.ApplicationMessage.Payload)}");
+                    }
+                }
+            }
+        };
+    }
+
+    private string? requestTopicPattern;
+    protected string? RequestTopicPattern
+    {
+        get => requestTopicPattern;
+        set
+        {
+            requestTopicPattern = value?.Replace("{clientId}", _connection.Options.ClientId).Replace("{name}", _name)!;
+            _ = _connection.SubscribeWithReplyAsync(requestTopicPattern);
+        }
+    }
+
+    private string? responseTopicPattern;
+    protected string? ResponseTopicPattern
+    {
+        get => responseTopicPattern;
+        set
+        {
+            responseTopicPattern = value?.Replace("{clientId}", _connection.Options.ClientId).Replace("{name}", _name)!;
+        }
+    }
+}
+```
+
+With these two binders we can proceed to implement Telemetry, Properties and Commands.
+
+Let's assume we want to use the next  MQTT topics:
 
 |Pattern|Direction|Topic|
 |-------|---------|-----|
@@ -141,223 +326,123 @@ To implement the interfaces described above using the MQTT protocol we can creat
 
 > Note: Direction means if the message is published or received from a device point of view: `->` means publish and `<-` means subscribed
 
-> Note: The syntax `{clientId}` and `{commandName}` must be replaced with the actual values
+> Note: The syntax `{clientId}`, `{propertyName}` and `{commandName}` should be replaced with the actual values
 
-These binders will use Dependency Injection to use an existing MQTT connection, represented by the `IMqttClient` interface available in `MQTTnet`.  
 
-```cs
-public interface IMqttClient
-{
-    Task<MqttClientPublishResult> PublishAsync(topic, payload);
-    Task<MqttClientSubscribeResult> SubscribehAsync(topic);
-}
-```
-
-## Telemetry Topic Binding
+## Telemetry 
 
 The Telemetry class implements the `Telemetry<T>` interface publishing messages to the corresponding topic
 
 ```cs
-public class Telemetry<T> : ITelemetry<T>
+public class Telemetry<T> : DeviceToCloudBinder<T>, ITelemetry<T>
 {
-    private readonly IMqttClient connection;
-
-    public Telemetry(IMqttClient connection, string name)
+    public Telemetry(IMqttClient mqttClient) : this(mqttClient, string.Empty) { }
+    public Telemetry(IMqttClient mqttClient, string name)
+        : base(mqttClient, name)
     {
-        this.connection = connection;
+        TopicPattern = "device/{clientId}/telemetry";
+        WrapMessage = true;
     }
-
-    public async Task<MqttClientPublishResult> SendTelemetryAsync(T payload, CancellationToken cancellationToken = default) =>
-        await connection.PublishAsync(
-            $"device/{connection.Options.ClientId}/telemetry", 
-            payload, 
-            Protocol.MqttQualityOfServiceLevel.AtMostOnce, 
-            false, 
-            cancellationToken);
-    
 }
 ```
 
-## Command Topic Binding
+## Command 
 
 Commands will expose a delegate callback and will send the command response:
 
 ```cs
-public class Command<T, TResponse> : ICommand<T, TResponse>
-        where T : IBaseCommandRequest<T>, new()
-        where TResponse : IBaseCommandResponse<TResponse>
+public class Command<T, TResp> : CloudToDeviceBinder<T, TResp>, ICommand<T, TResp>
 {
-    public Func<T, Task<TResponse>>? OnCmdDelegate { get; set; }
-
-    public Command(IMqttClient connection, string commandName)
+    public Command(IMqttClient client, string name)
+        : base(client, name)
     {
-        _ = connection.SubscribeAsync($"pnp/{connection.Options.ClientId}/commands/{commandName}");
-        connection.ApplicationMessageReceivedAsync += async m =>
+        RequestTopicPattern = "device/{clientId}/commands/{name}";
+        ResponseTopicPattern = "device/{clientId}/commands/{name}/resp";
+    }
+}
+```
+
+## ReadOnlyProperty
+
+ReadOnly properties will use the property name in the topic pattern and do not need to wrap the message:
+
+```cs
+public class ReadOnlyProperty<T> : DeviceToCloudBinder<T>, IReadOnlyProperty<T>
+{
+    public ReadOnlyProperty(IMqttClient mqttClient) : this(mqttClient, string.Empty) { }
+    public ReadOnlyProperty(IMqttClient mqttClient, string name)
+        : base(mqttClient, name)
+    {
+        TopicPattern = "device/{clientId}/props/{name}";
+        WrapMessage = false;
+        Retain = true;
+    }
+}
+```
+
+Although some times must be required to send all the properties in a single message, so we will use a generic topic, with wrapped messages:
+
+```cs
+TopicPattern = "device/{clientId}/props";
+WrapMessage = true;
+```
+
+## WritableProperty
+
+
+```cs
+public class WritableProperty<T> : CloudToDeviceBinder<T, Ack<T>>, IWritableProperty<T>
+{
+    readonly IMqttClient _connection;
+    readonly string _name;
+    public T? Value { get; set; }
+    public int? Version { get; set; } = -1;
+
+    public WritableProperty(IMqttClient c, string name)
+        : base(c, name)
+    {
+        _name = name;
+        _connection = c;
+
+        RequestTopicPattern = "device/{clientId}/props/{name}/set/#";
+        ResponseTopicPattern = "device/{clientId}/props/{name}/ack";
+        RetainResponse = true;
+        PreProcessMessage = tp =>
         {
-            var topic = m.ApplicationMessage.Topic;
-            if (topic.Equals($"device/{connection.Options.ClientId}/commands/{commandName}"))
-            {
-                T req = new T().DeserializeBody(Encoding.UTF8.GetString(m.ApplicationMessage.Payload));
-                if (OnCmdDelegate != null && req != null)
-                {
-                    TResponse response = await OnCmdDelegate.Invoke(req);
-                    _ = connection.PublishJsonAsync($"device/{connection.Options.ClientId}/commands/{commandName}/resp/", response.ReponsePayload);
-                }
-            }
+            Version = tp.Version;
         };
     }
-}
-```
 
-## Property Binders
-
-Property can be updated with the `UpdateProperyBinder` implementation
-
-```cs
-public interface IPropertyStoreWriter
-{
-    Task<int> ReportPropertyAsync(object payload, CancellationToken token = default);
-}
-
-public class UpdatePropertyBinder : IPropertyStoreWriter
-{
-    private readonly IMqttClient connection;
-    private readonly string name;
-    
-    public UpdatePropertyBinder(IMqttClient connection, string propName)
+    public async Task SendMessageAsync(Ack<T> payload, CancellationToken cancellationToken = default)
     {
-        this.connection = connection;
-        name = propName;
-    }
-
-    public async Task<int> ReportPropertyAsync(object payload, CancellationToken cancellationToken = default)
-    {
-        await connection.PublishAsync(
-            $"device/{connection.Options.ClientId}/props/{name}", 
-            payload,
-            Protocol.MqttQualityOfServiceLevel.AtLeastOnce, 
-            true, 
-            cancellationToken);
-    }
-}
-```
-
-Similarly desires properties are implemented by a desired property binder follwing the same C2D pattern as commands:
-
-```cs
-public class DesiredUpdatePropertyBinder<T>
-{
-    private readonly IMqttClient connection;
-    private readonly string name;
-
-    public Func<PropertyAck<T>, PropertyAck<T>>? OnProperty_Updated = null;
-
-    public DesiredUpdatePropertyBinder(IMqttClient c, IPropertyStoreWriter propertyBinder, string propertyName)
-    {
-        connection = c;
-        name = propertyName;
-        c.ApplicationMessageReceivedAsync += async m =>
+        var prop = new ReadOnlyProperty<Ack<T>>(_connection, _name)
         {
-            var topic = m.ApplicationMessage.Topic;
-            if (topic.StartsWith($"pnp/{connection.Options.ClientId}/props/{propertyName}/set"))
-            {
-                JsonNode desiredProperty = JsonNode.Parse(Encoding.UTF8.GetString(m.ApplicationMessage.Payload))!;
-                if (desiredProperty != null)
-                {
-                        var property = new PropertyAck<T>(propertyName, componentName)
-                        {
-                            Value = desiredProperty.Deserialize<T>()!,
-                        };
-                        var ack = OnProperty_Updated(property);
-                        if (ack != null)
-                        {
-                            _ = propertyBinder.ReportPropertyAsync(ack);
-                        }
-                }
-            }
-            await Task.Yield();
+            TopicPattern = "device/{clientId}/props/{name}/ack",
+            WrapMessage = false
         };
-    }
-}
-```
-
-## Read Only  Property
-
-Using he property binders, the implementation for ReadOnly and Writable ony interfaces can be implemented as
-
-```cs
-public class ReadOnlyProperty<T> : IReadOnlyProperty<T>
-{
-    private readonly IPropertyStoreWriter updateBinder;
-    public string PropertyName { get; }
-    public T PropertyValue { get; set; }
-
-    public ReadOnlyProperty(IMqttClient connection, string name)
-    {
-        updateBinder = new UpdatePropertyBinder(connection, name);
-        PropertyName = name;
-        PropertyValue = default!;
-    }
-
-    public async Task<int> ReportPropertyAsync(CancellationToken cancellationToken = default)
-    {
-        await updateBinder.ReportPropertyAsync(PropertyValue!, cancellationToken);
-        return -1;
-    }
-}
-```
-
-## Wrtiable Property
-
-```cs
-public class WritableProperty<T> : IWritableProperty<T>
-{
-    private readonly IMqttClient connection;
-    private readonly string propertyName;
-    private readonly IPropertyStoreWriter updatePropertyBinder;
-    private readonly DesiredUpdatePropertyBinder<T>? desiredBinder;
-    
-    public string PropertyName => propertyName;
-    public PropertyAck<T> PropertyValue { get; set; }
-
-
-    public WritableProperty(IMqttClient c, string name, string component = "")
-    {
-        connection = c;
-        propertyName = name;
-        updatePropertyBinder = new UpdatePropertyBinder(c, name);
-        PropertyValue = new PropertyAck<T>(name, componentName);
-        desiredBinder = new DesiredUpdatePropertyBinder<T>(c, updatePropertyBinder, name, componentName);
-    }
-
-    public async Task<int> ReportPropertyAsync(CancellationToken token = default) => 
-        await updatePropertyBinder.ReportPropertyAsync(PropertyValue, token);
- 
-    public Func<PropertyAck<T>, PropertyAck<T>> OnProperty_Updated
-    {
-        get => desiredBinder?.OnProperty_Updated!;
-        set => desiredBinder!.OnProperty_Updated = value;
+        await prop.SendMessageAsync(payload, cancellationToken);
     }
 }
 ```
 
 # Sample Usage
 
-A concrete device will expose an interface compose of the unerlying interfaces described:
+Now that we have implementations for Telemetry, Properties and Commands, we can define a custom client:
 
 ```cs
-public interface IMqttDevice
+public class SampleClient
 {
-    public IMqttClient Connection { get; }
-    
     public IReadOnlyProperty<string> Property_sdkInfo { get; set; }
     public IWritableProperty<int> Property_interval { get; set; }
-    public ITelemetry<double> Telemetry_temp{ get; set; }
-    public ICommand<Cmd_echo_Request, Cmd_echo_Response> Command_echo { get; set; }
+    public ITelemetry<double> Telemetry_temp { get; set; }
+    public ICommand<string, string> Command_echo { get; set; }
+    
+    public SampleClient(IMqttClient c) 
+    {
+        Property_sdkInfo = new ReadOnlyProperty<string>(c, "sdkInfo");
+        Property_interval = new WritableProperty<int>(c, "interval");
+        Telemetry_temp = new Telemetry<double>(c, "temp");
+        Command_echo = new Command<string, string>(c, "echo");
+    }
 }
 ```
-
-And this interface can be implementsd in different ways targeting different MQTT implementations.
-
-## Implementing the interface for a generic broker
-
