@@ -1,12 +1,12 @@
 ---
-title: The IoT Pattern. A .NET implemetation for MQTT
+title: The IoT Pattern. A .NET implementation for MQTT
 layout: post
 date: 2022-09-18
 ---
 
-If there is one thing about IoT that can be considered as a pattern, is the characteristics that define a IoT Solution:
+If there is one thing about IoT that can be considered as a pattern, is the characteristic that define a IoT Solution:
 
-    **Devices that can be managed remotely**
+    __Devices that can be managed remotely__
 
 The term devices, is very broad, and can be reduced to the idea of _small_ applications, running on different hardware (from constrained MCUs, to complete Windows or Linux computers, and everything in between) that are able to communicate with and endpoint, typically a cloud service.
 
@@ -22,7 +22,7 @@ To represent messages set from the device to the cloud, we can define the next i
 ```cs
 public interface IDeviceToCloud<T>
 {
-    Task SendMessageAsync(T payload, CancellationToken cancellationToken = default);
+    Task SendMessageAsync(T payload);
 }
 ```
 
@@ -37,7 +37,7 @@ public interface ICloudToDevice<T, TResp>
 
 ## Telemetry
 
-Telemetry is the most common case, when devices send messages with measurements obtained from sensors, such as _temperature_. Since these measuremens change frequently, the data is considered "volatile", and should be stored somewhere for further analysis. These messages can be as simple as numbers, or following a more complex schema.
+Telemetry is the most common case, when devices send messages with measurements obtained from sensors, such as _temperature_. Since these measurement change frequently, the data is considered "volatile", and should be stored somewhere for further analysis. These messages can be as simple as numbers, or following a more complex schema.
 
 ```cs
 public interface ITelemetry<T> : IDeviceToCloud<T> { }
@@ -53,7 +53,7 @@ public interface ICommand<T, TResp> : ICloudToDevice<T, TResp> { }
 
 ## Property
 
-Devices can describe some of their characteriscts, such as the serial number, or hardware details, but also what can be referred as the _device state_. Like the variables that define the runtime behavior, suchlike how often to send telemetry messages. There are two types of device properties:
+Devices can describe some of their characteristics, such as the serial number, or hardware details, but also what can be referred as the _device state_. Like the variables that define the runtime behavior, suchlike how often to send telemetry messages. There are two types of device properties:
 
 ### Reported Properties
 
@@ -65,7 +65,7 @@ public interface IReadOnlyProperty<T> : IDeviceToCloud<T> { }
 
 ### Desired Properties
 
-Some properties can be set from the solution side, C2D, where the device should receive the desired property change, and accept or reject the value. These properties are referred to as _desired properties_, or _writable propeties_. The acceptance/rejection of a property can be described with _ack_ messages. These _ack_ messages contains additional information about the property, such as the Status, Version or Description, that the device can use to inform to the service if the property was accepted, or not, and related details.
+Some properties can be set from the solution side, C2D, where the device should receive the desired property change, and accept or reject the value. These properties are referred to as _desired properties_, or _writable properties_. The acceptance/rejection of a property can be described with _ack_ messages. These _ack_ messages contains additional information about the property, such as the Status, Version or Description, that the device can use to inform to the service if the property was accepted, or not, and related details.
 
 Since the ack messages need to be also reported, the IWritableProperty interface implements D2C and C2D:
 
@@ -89,7 +89,7 @@ public interface IWritableProperty<T> : ICloudToDevice<T, Ack<T>>, IDeviceToClou
 
 # MQTT
 
-There are multiple protocols available to implement IoT devices, although there is one that is widely used, and sometimes referred as the _king_ in the IoT landscape: *MQTT*. Compared to the ominpresent _HTTP_, MQTT has two fundamental benefits: bi-directional communication and power efficiency. These two make the protocol ideal to implement **The IoT Pattern**.
+There are multiple protocols available to implement IoT devices, although there is one that is widely used, and sometimes referred as the _king_ in the IoT landscape: *MQTT*. Compared to the omnipresent _HTTP_, MQTT has two fundamental benefits: bi-directional communication and power efficiency. These two make the protocol ideal to implement **The IoT Pattern**.
 
 ## MQTT Brokers
 
@@ -105,7 +105,7 @@ To interact with the broker we need to:
 
 The most used client is the `mosquitto-client` available in almost every Windows/Linux/Mac OS in the form `mosquitto_pub` and `mosquitto_sub` CLI commands, and there are multiple other options.
 
-To write device application we need libraries implementing the protocol, like `Paho` from the Eclipse foundation, but there are manyu others for practically every programming platform.
+To write device applications we need libraries implementing the protocol, like `Paho` from the Eclipse foundation, but there are many others for practically every programming platform.
 
 No matter with language you use, the pseudo-code to connect, publish and subscribe will look similar to:
 
@@ -120,7 +120,7 @@ mqtt.OnMessageReceived = (topic, msg) => {
 mqtt.publish('topicA', 'sampleMessage')
 ```
 
-This pattern, although very powerfull, makes the client code difficult to write, since the client must process all the incoming messages in a single location, the callback where we subscribe for incoming.
+This pattern, although very powerful, makes the client code difficult to write, since the client must process all the incoming messages in a single location, the callback where we subscribe for incoming.
 
 # Introducing MQTT Topic Bindings
 
@@ -133,7 +133,7 @@ These binders will use Dependency Injection to use an existing MQTT connection, 
 public interface IMqttClient
 {
     Task<MqttClientPublishResult> PublishAsync(string topic, byte[] payload);
-    Task<MqttClientSubscribeResult> SubscribehAsync(topic);
+    Task<MqttClientSubscribeResult> SubscribeAsync(topic);
 }
 ```
 
@@ -216,7 +216,7 @@ public abstract class DeviceToCloudBinder<T> : IDeviceToCloud<T>
     }
 }
 ```
-The abstract class includes tw protected members to configure its behavior:
+The abstract class includes two protected members to configure its behavior:
 
 - TopicPattern. To configure the topic to publish to.
 - Retained. If the message should published with the retain flag.
