@@ -6,7 +6,7 @@ date: 2022-10-02
 
 If there is one thing about IoT that can be considered as a pattern, is the characteristic that define a IoT Solution:
 
-    __Devices that can be managed remotely__
+    ***Devices that can be managed remotely***
 
 The term devices, is very broad, and can be reduced to the idea of _small_ applications, running on different hardware (from constrained MCUs, to complete Windows or Linux computers, and everything in between) that are able to communicate with and endpoint, typically a cloud service.
 
@@ -14,11 +14,14 @@ These devices are able, not only to request information - like we do everyday th
 
 In this article we are going to explore a .NET implementation of the IoT Pattern for MQTT, using MQTTnet.
 
+{:toc}
+
 # The IoT Pattern
 
-The patterns consist on 2 main communication behaviors, usually referred as D2C, for Device to Cloud communications, or C2D for Cloud to Device.
+The pattern consists on 2 main communication behaviors, usually referred as D2C, for Device to Cloud communications, or C2D for Cloud to Device.
 
 To represent messages set from the device to the cloud, we can define the next interface.
+
 ```cs
 public interface IDeviceToCloud<T>
 {
@@ -26,7 +29,7 @@ public interface IDeviceToCloud<T>
 }
 ```
 
-Messages sent from the cloud to the device usually follows another message from the device to acknowledge the message was received, for this case we are going to use a callback with a request and a response using a `Func`.
+Messages sent from the cloud to the device usually are followed by another message from the device to acknowledge the message was received. For this case we are going to use a callback with a request and a response using a `Func`.
 
 ```cs
 public interface ICloudToDevice<T, TResp>
@@ -85,8 +88,6 @@ public interface IWritableProperty<T> : ICloudToDevice<T, Ack<T>>, IDeviceToClou
 }
 ```
 
-
-
 # MQTT
 
 There are multiple protocols available to implement IoT devices, although there is one that is widely used, and sometimes referred as the _king_ in the IoT landscape: *MQTT*. Compared to the omnipresent _HTTP_, MQTT has two fundamental benefits: bi-directional communication and power efficiency. These two make the protocol ideal to implement **The IoT Pattern**.
@@ -138,7 +139,7 @@ public interface IMqttClient
 
 ## Serializers
 
-Note how the publish method requires a byte array, what gives multiple options to use different serializers, to customize the serialization format we will define the `IMessageSerializer` interface, to enable the binder to be configured with different serializers, such as JSON, Avro, or Protobuf.
+Messages are represented as a `byte array`, with multiple options to use different serializers, to customize the serialization format the binders can be initialized with a `IMessageSerializer`, such as JSON, Avro, or Protobuf.
 
 ```cs
 public interface IMessageSerializer
@@ -159,7 +160,6 @@ There are cases where we want the message to be _wrapped_ with the name, eg:
 ```
 
 Hence, the serializers should know that name to provide the actual value.
-
 
 ## DeviceToCloud Binder
 
@@ -453,7 +453,7 @@ This client can be used to implement the device application focusing in the appl
 - Initialize the `SampleClient` with an existing mqtt connection:
 
 ```cs
-SamppleClient client = new SampleClient(mqttClient);
+SampleClient client = new SampleClient(mqttClient);
 ```
 
 - Update a ReadOnlyProperty
