@@ -6,7 +6,7 @@ date: 2022-10-02
 
 If there is one thing about IoT that can be considered as a pattern, is the characteristic that define a IoT Solution:
 
-    _Devices that can be managed remotely_
+    Devices that can be managed remotely
 
 The term devices, is very broad, and can be reduced to the idea of _small_ applications, running on different hardware (from constrained MCUs, to complete Windows or Linux computers, and everything in between) that are able to communicate with and endpoint, typically a cloud service.
 
