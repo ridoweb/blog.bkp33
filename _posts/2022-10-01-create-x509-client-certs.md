@@ -86,4 +86,4 @@ bash -c $bashCmd
 
 This script is a convenient tool to simplify your development process when you need to create client certificates signed by a custom CA without using the CSR flow.
 
-The full script is available in this Gist https://gist.github.com/ridomin/0ffb6a3c4c51eec7cdb020bedc8e0a5d
+The full script is available in this [gist](https://gist.github.com/ridomin/0ffb6a3c4c51eec7cdb020bedc8e0a5d)
