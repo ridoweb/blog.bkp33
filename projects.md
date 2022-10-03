@@ -12,11 +12,12 @@ Create dotnet MQTT applications compatible with any MQTT Cloud provider, such as
 
 - [https://github.com/iotmodels/MQTTnet.Extensions.MultiCloud](https://github.com/iotmodels/MQTTnet.Extensions.MultiCloud)
 
-## PnP-MQTT
+## IoTUX-MQTT
 
-A web client application -no service code required-, to connect to a MQTT broker using websockets, and provide a dynamic UI by parsing the DTDL model.
+A web client application -no service code required-, to connect to a MQTT broker using websockets, and provide a dynamic UI by parsing the model.
 
-- [PnP-MQTT](https://iotmodels.github.io/pnp-mqtt/)
+- [IoT-UX](https://iotmodels.github.io/iotux-mqtt/)
+- [https://github.com/iotmodels/iotux-mqtt](https://github.com/iotmodels/iotux-mqtt)
 
 ## Azure IoT Hub Web Client
 
