@@ -1,7 +1,7 @@
 ---
 title: The IoT Pattern. A .NET implementation for MQTT
 layout: post
-date: 2022-09-18
+date: 2022-10-02
 ---
 
 If there is one thing about IoT that can be considered as a pattern, is the characteristic that define a IoT Solution:
@@ -124,10 +124,9 @@ This pattern, although very powerful, makes the client code difficult to write, 
 
 # Introducing MQTT Topic Bindings
 
-To implement the interfaces described above using the MQTT protocol we can create _topic bindings_, these are classes that will use specific MQTT topics. 
+To implement the interfaces described above using the MQTT protocol we can create _topic bindings_, these are classes that will implement the details to work with topics: publishing messages and most interestingly to subscribe and make the incoming messages available as .NET callbacks. The messages are serialized for publishing and deserialized when received. These serialization operations are exposed on generic APIs. 
 
-
-These binders will use Dependency Injection to use an existing MQTT connection, represented by the `IMqttClient` interface available in `MQTTnet`.  
+To integrate with an existing  connection, these binders use Dependency Injection to use an existing connection, represented by the `IMqttClient` interface available in `MQTTnet`.  
 
 ```cs
 public interface IMqttClient
@@ -139,7 +138,7 @@ public interface IMqttClient
 
 ## Serializers
 
-Note how the publish method requires a byte array, what gives multiple options to use different serializers, to customize the serialization format we will define the `IMessageSerializer` interface, to enable to configure the binder with different serialization options, such as UTF8Json, Avro, or Protobuf.
+Note how the publish method requires a byte array, what gives multiple options to use different serializers, to customize the serialization format we will define the `IMessageSerializer` interface, to enable the binder to be configured with different serializers, such as JSON, Avro, or Protobuf.
 
 ```cs
 public interface IMessageSerializer
@@ -164,7 +163,7 @@ Hence, the serializers should know that name to provide the actual value.
 
 ## DeviceToCloud Binder
 
-This binder implements the `IDeviceToCloud` interface and is responsible to serialize the incoming message into a byte array and publish to the specified topic, there is a constructor that uses the Json serializer but this can be configured with additional serializers.
+This D2C binder implements the `IDeviceToCloud` interface and is responsible to serialize the incoming message into a byte array and publish to the specified topic, there is a constructor that uses the Json serializer and  can be configured with a different serializer.
 
 ```cs
 public abstract class DeviceToCloudBinder<T> : IDeviceToCloud<T>
@@ -224,9 +223,9 @@ The abstract class includes two protected members to configure its behavior:
 
 ## CloudToDevice Binder
 
-Thanks to C# multicast delegates, we can apply a code pattern to isolate the processing of each incoming message in a single class, to follow the Single-Responsibility principle.
+The C2D binder will listen to all received messages, and expose a delegate to consumers. When a message is received it will filter based on the configured topic pattern and when matched it will deserialize the incoming message and invoke the delegate. Additionally it will serialize and publish the response. 
 
-This way, we can have different classes to implement Telemetry, Properties and Commands by publishing and subscribing to a well-known MQTT topics.
+> Note: Note that all C2D binders will receive ALL messages, but only those who are sent to the configured topic will be actually processed.
 
 ```cs
 public abstract class CloudToDeviceBinder<T, TResp> : ICloudToDevice<T, TResp>
@@ -316,7 +315,7 @@ With these two binders we can proceed to implement Telemetry, Properties and Com
 Let's assume we want to use the next  MQTT topics:
 
 |Pattern|Direction|Topic|
-|-------|---------|-----|
+|-------|---------|:----|
 |Telemetry| -> | `device/{clientId}/telemetry` |
 |Command (request) | <- | `device/{clientId}/command/{commandName}` |
 |Command (response) | -> | `device/{clientId}/command/{commandName}/res` |
@@ -330,7 +329,7 @@ Let's assume we want to use the next  MQTT topics:
 
 # Implementing Telemetry, Properties and Commands
 
-With the D2C and C2D binders we can implement the IoT messaging patterns by inheriting from the abstract binders and configure the topics we want to use for each case.
+With the D2C and C2D binders we can implement the IoT messaging patterns by inheriting from the abstract classes and configure the topics we want to use for each case.
 
 ## Telemetry 
 
@@ -383,7 +382,7 @@ public class ReadOnlyProperty<T> : DeviceToCloudBinder<T>, IReadOnlyProperty<T>
 }
 ```
 
-Although some times must be required to send all the properties in a single message, so we will use a generic topic, with wrapped messages:
+Although some times must be required to send all the properties in a single message,  we could use a generic topic, with wrapped message:
 
 ```cs
 TopicPattern = "device/{clientId}/props";
@@ -391,7 +390,6 @@ WrapMessage = true;
 ```
 
 ## WritableProperty
-
 
 ```cs
 public class WritableProperty<T> : CloudToDeviceBinder<T, Ack<T>>, IWritableProperty<T>
@@ -430,7 +428,7 @@ public class WritableProperty<T> : CloudToDeviceBinder<T, Ack<T>>, IWritableProp
 
 # Sample Usage
 
-Now that we have implementations for Telemetry, Properties and Commands, we can define a custom client:
+Now that we have implementations for Telemetry, Properties and Commands, we can define a custom client composed of one or more of these elements:
 
 ```cs
 public class SampleClient
@@ -455,7 +453,7 @@ This client can be used to implement the device application focusing in the appl
 - Initialize the `SampleClient` with an existing mqtt connection:
 
 ```cs
-client = new SampleClient(mqttClient);
+SamppleClient client = new SampleClient(mqttClient);
 ```
 
 - Update a ReadOnlyProperty
@@ -497,6 +495,6 @@ client.Property_interval.OnMessage = async p =>
 
 # Summary
 
-Following this pattern you can implement MQTT applications by applying SOLID principle, the abstract binders will handle the communication details, the Telemetry, Command, ReadOnlyProperty and WritableProperty implementations can be configured to match the topic structure and serialization formats, compose these with a client and now your application logic can be implemented without taking care of the protocol details.
+Following this pattern you can implement MQTT applications by applying SOLID principles. The abstract binders will handle the communication details, the Telemetry, Command, ReadOnlyProperty and WritableProperty implementations can be configured to match the topic structure and serialization formats, compose these with a client and now your application logic can be implemented without taking care of the protocol details.
 
 This pattern is being used in the [MQTTnet.Extensions.MultiCloud](https://github.com/iotmodels/MQTTnet.Extensions.MultiCloud) project, to create MQTT applications that can work with different cloud providers.
