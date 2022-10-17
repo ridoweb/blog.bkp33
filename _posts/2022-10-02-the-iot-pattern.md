@@ -6,7 +6,7 @@ date: 2022-10-02
 
 If there is one thing about IoT that can be considered as a pattern, is the characteristic that define a IoT Solution:
 
-    Devices that can be managed remotely
+> _Devices that can be managed remotely_
 
 The term devices, is very broad, and can be reduced to the idea of _small_ applications, running on different hardware (from constrained MCUs, to complete Windows or Linux computers, and everything in between) that are able to communicate with and endpoint, typically a cloud service.
 
@@ -14,13 +14,11 @@ These devices are able, not only to request information - like we do everyday th
 
 In this article we are going to explore a .NET implementation of the IoT Pattern for MQTT, using MQTTnet.
 
-{:toc}
-
 # The IoT Pattern
 
 The pattern consists on 2 main communication behaviors, usually referred as D2C, for Device to Cloud communications, or C2D for Cloud to Device.
 
-To represent messages set from the device to the cloud, we can define the next interface.
+To represent messages sent from the device to the cloud, we can define the next interface.
 
 ```cs
 public interface IDeviceToCloud<T>
@@ -108,9 +106,9 @@ The most used client is the `mosquitto-client` available in almost every Windows
 
 To write device applications we need libraries implementing the protocol, like `Paho` from the Eclipse foundation, but there are many others for practically every programming platform.
 
-No matter with language you use, the pseudo-code to connect, publish and subscribe will look similar to:
+No matter which language you use, the pseudo-code to connect, publish and subscribe will look similar to:
 
-```c
+```js
 mqtt.connect()
 mqtt.subscribe('topicA')
 mqtt.OnMessageReceived = (topic, msg) => {
