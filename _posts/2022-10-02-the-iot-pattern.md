@@ -108,7 +108,7 @@ The most used client is the `mosquitto-client` available in almost every Windows
 
 To write device applications we need libraries implementing the protocol, like `Paho` from the Eclipse foundation, but there are many others for practically every programming platform.
 
-No matter with language you use, the pseudo-code to connect, publish and subscribe will look similar to:
+No matter which language you use, the pseudo-code to connect, publish and subscribe will look similar to:
 
 ```c
 mqtt.connect()
