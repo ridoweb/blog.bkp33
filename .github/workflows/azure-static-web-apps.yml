@@ -1,4 +1,4 @@
-name: Jekyll CI/CD
+name: Push to AzStatic
 
 on:
   push:
