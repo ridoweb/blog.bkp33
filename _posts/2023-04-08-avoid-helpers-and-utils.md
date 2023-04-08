@@ -4,7 +4,7 @@ layout: post
 date: 2023-04-08
 ---
 
-## Why I don't like Helpers and Utils ?
+### Why I don't like Helpers and Utils ?
 
 > It's a sign of incomplete design.
 
@@ -12,7 +12,7 @@ I blogged about it some years ago !!
 [https://learn.microsoft.com/en-us/archive/blogs/rido/helpers-and-utils-are-codesmells](Helpers and Utils are Code-Smells) and I still have a very allergic reaction when see a repo using any of these two words: _helpers_ or _utils_, to mane  classes, methods, namespaces, or any other api surface.
 
 
-## TL;DR;
+### TL;DR;
 
 The most valuable quality of any application is to describe the architecture by having a good design. The design is not a document, is a combination of class names, folder structures, configuration variables, and deployment scripts. All of these artifacts have to work smoothly, by using the same concepts, in terms of _nouns_ and _verbs_, and every single piece of functionality is well defined with clear inputs and outputs establdhed by contracts.
 
@@ -20,7 +20,7 @@ It might seem unsignificant, but every time I have to browse a folder named _Uti
 
 In bigger code bases, these might become a nightmare, where every other feature can use those helpers. Now they are tight coupled to their consumers, making future refactoring across the entire codebase.
 
-### How to organize those _helpers_
+#### How to organize those _helpers_
 
 Hopefully, at some point you will find (aka emergent design) the right terms to describe the business logic as a cohesive componets exposing an easy-to-use API surface. This is not easy, and often you will find yourself in a position where adding static methods seems ok.
 
@@ -40,7 +40,7 @@ CertificateLoader.LoadFromFile(path :string) : X509Certificate
 
 Now you have a file, eg `CertificateLoader.js` that exposes a method to load certificates from files. This file is a single unit, that it's easy to mantain evolve, and at some time, when the design emerges, to make it part of a more complete API. 
 
-## Few Assemblies, Many classes
+### Few Assemblies, Many classes
 
 Yoy
 
