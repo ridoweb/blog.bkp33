@@ -9,7 +9,11 @@ date: 2023-04-08
 > It's a sign of incomplete design.
 
 I blogged about it some years ago !! 
-[https://learn.microsoft.com/en-us/archive/blogs/rido/helpers-and-utils-are-codesmells](Helpers and Utils are Code-Smells) and I still have a very allergic reaction when see a repo using any of these two words: _helpers_ or _utils_, to mane  classes, methods, namespaces, or any other api surface.
+
+[Helpers and Utils are Code-Smells (Nov 2005)](https://learn.microsoft.com/en-us/archive/blogs/rido/helpers-and-utils-are-codesmells)
+
+
+... and I still have a very allergic reaction when see a repo using any of these two words: _helpers_ or _utils_, to mane  classes, methods, namespaces, or any other api surface.
 
 
 ### TL;DR;
